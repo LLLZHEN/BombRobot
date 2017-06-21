@@ -1,31 +1,49 @@
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class Main {
 
     public static void main(String[] args) {
-        System.out.println("Hello World!");
         List<World> worlds = new ArrayList<>();
-        char[] map = {'0', '0'};
-        World initWorld = new World(1, 1, 0, map, new ArrayList<Bomb>(), new Owner(1, 1));
+        char[] map = {'.', '.', '.', '.', '.', '.', '.', '.', '0'};
+        World initWorld = new World(3, 3, 0, map, new ArrayList<Bomb>(), new Owner(2, 0, new ArrayList<Entity>()));
         worlds.add(initWorld);
 
-        Iterator<World> worldIterator = worlds.iterator();
+        long startTime = System.currentTimeMillis();
 
-
-        for (int depth = 1; depth < 6; depth++) {
-            while (worldIterator.hasNext()) {
-                World oldWorld = worldIterator.next();
+        for (int depth = 1; depth < 2; depth++) {
+            List<World> removeList = new ArrayList<>();
+            List<World> addList = new ArrayList<>();
+            for (World oldWorld : worlds) {
                 for (Action action : Action.values()) {
                     World newWorld = oldWorld.clone();
                     if (newWorld.perform(action)) {
-                        worlds.add(newWorld);
+                        addList.add(newWorld);
                     }
                 }
-                worldIterator.remove();
+                removeList.add(oldWorld);
+            }
+            worlds.removeAll(removeList);
+            worlds.addAll(addList);
+
+            Collections.sort(worlds, new Comparator<World>() {
+                @Override
+                public int compare(World worldA, World worldB) {
+                    return worldA.score - worldB.score;
+                }
+            });
+
+            if (worlds.size() > 400) {
+                worlds = worlds.subList(0, 400);
+            }
+
+            // Stop to simulate the next depth before timeout
+            if (System.currentTimeMillis() - startTime > 90) {
+                break;
             }
         }
+
+        Entity output = worlds.get(0).owner.getFootPrints().get(0);
+        System.out.println("x:" + output.x + ", y:" + output.y);
     }
 }
 
@@ -47,7 +65,9 @@ class World implements Cloneable {
 
     @Override
     public World clone() {
-        return new World(width, height, score, map, bombs, owner);
+        char[] newMap = map.clone();
+        List<Bomb> newBombs = new ArrayList<>(bombs);
+        return new World(width, height, score, newMap, newBombs, owner.clone());
     }
 
     public boolean perform(Action action) {
@@ -55,42 +75,53 @@ class World implements Cloneable {
             case LEFT:
                 owner.moveLeft();
                 break;
+//            case BOMB_LEFT:
+//                owner.moveLeft();
+//                break;
 
             default:
-                break;
+                return false;
         }
-
 
         return update();
     }
 
     private boolean update() {
         // Check invalid movement
-        if (isCollidedWithBox(owner) || isCollidedWithBomb(owner)) {
+        if (isOutsideMap(owner) || isCollidedWithBox(owner) || isCollidedWithBomb(owner)) {
             return false;
         }
 
         // Check explosion
-        List<Entity> allFires = new ArrayList<>();
+        List<Bomb> bang = new ArrayList<>();
         for (Bomb bomb : bombs) {
-            List<Entity> fires = bomb.update();
-            if (fires != null) {
-                allFires.addAll(fires);
+            bomb.update();
+            if (bomb.getCountDown() == 0) {
+                bang.add(bomb);
             }
         }
-        for (Entity fire : allFires) {
-            if (owner.isCollided(fire)) {
-                // killed
-                return false;
-            }
+        bombs.removeAll(bang);
+        for (Bomb bomb : bang) {
 
-            if (isCollidedWithBox(fire)) {
-                clearBox(fire);
-                score++;
-            }
         }
+
+//        for (Entity fire : allFires) {
+//            if (owner.isCollided(fire)) {
+//                // killed
+//                return false;
+//            }
+//
+//            if (isCollidedWithBox(fire)) {
+//                clearBox(fire);
+//                score++;
+//            }
+//        }
 
         return true;
+    }
+
+    private boolean isOutsideMap(Entity entity) {
+        return entity.x < 0 || entity.x >= width || entity.y < 0 || entity.y >= height;
     }
 
     private boolean isCollidedWithBox(Entity entity) {
@@ -102,6 +133,8 @@ class World implements Cloneable {
         int offset = entity.x + entity.y * width;
         map[offset] = '.';
     }
+
+
 
     private boolean isCollidedWithBomb(Entity owner) {
         for (Bomb bomb : bombs) {
@@ -123,7 +156,7 @@ enum Action {
     DOWN,
     BOMB_DOWN,
     STAY,
-    BOMB_STAY;
+    BOMB_STAY
 }
 
 class Entity {
@@ -138,25 +171,42 @@ class Entity {
     }
 }
 
-class Owner extends Entity {
-    Owner(int x, int y) {
+class Owner extends Entity implements Cloneable {
+    private List<Entity> footPrints;
+
+    Owner(int x, int y, List<Entity> footPrints) {
         super(x, y);
+        this.footPrints = footPrints;
     }
 
     public void moveLeft() {
         x--;
+        footPrints.add(new Entity(x, y));
     }
 
     public void moveRight() {
         x++;
+        footPrints.add(new Entity(x, y));
     }
 
     public void moveUp() {
         y--;
+        footPrints.add(new Entity(x, y));
     }
 
     public void moveDown() {
         y++;
+        footPrints.add(new Entity(x, y));
+    }
+
+    public List<Entity> getFootPrints() {
+        return footPrints;
+    }
+
+    @Override
+    protected Owner clone() {
+        List<Entity> newFootPrints = new ArrayList<>(footPrints);
+        return new Owner(x, y, newFootPrints);
     }
 }
 
@@ -173,22 +223,15 @@ class Bomb extends Entity {
         return bomb;
     }
 
-    public List<Entity> update() {
+    public int getCountDown() {
+        return countDown;
+    }
+
+    public int getPower() {
+        return power;
+    }
+
+    public void update() {
         countDown--;
-        if (countDown == 0) {
-            List<Entity> fires = new ArrayList<>();
-            for (int i = 0; i < power; i++) {
-                if (i == 0) {
-                    fires.add(new Entity(x, y));
-                } else {
-                    fires.add(new Entity(x - i, y));
-                    fires.add(new Entity(x + i, y));
-                    fires.add(new Entity(x, y + i));
-                    fires.add(new Entity(x, y - i));
-                }
-            }
-            return fires;
-        }
-        return null;
     }
 }
