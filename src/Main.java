@@ -5,8 +5,10 @@ public class Main {
     public static void main(String[] args) {
         List<World> worlds = new ArrayList<>();
         char[] map = {'.', '.', '.', '.', '.', '.', '.', '.', '0'};
-        World initWorld = new World(3, 3, 0, map, new ArrayList<Bomb>(), new Owner(2, 0, new ArrayList<Entity>()));
+        World initWorld = new World(3, 3, 0, map, new ArrayList<Bomb>(), new Owner(2, 0, new ArrayList<FootPrint>()));
         worlds.add(initWorld);
+        
+        int bombNumLimit = 1;
 
         long startTime = System.currentTimeMillis();
 
@@ -19,6 +21,14 @@ public class Main {
                     if (newWorld.perform(action)) {
                         addList.add(newWorld);
                     }
+                }
+                if (oldWorld.owner.myBombs.size() < bombNumLimit) {
+                   for (Action action : Action.values()) {
+                      World newWorld = oldWorld.clone();
+                      if (newWorld.bombAndPerform(action)) {
+                          addList.add(newWorld);
+                      }
+                   }
                 }
                 removeList.add(oldWorld);
             }
@@ -42,8 +52,8 @@ public class Main {
             }
         }
 
-        Entity output = worlds.get(0).owner.getFootPrints().get(0);
-        System.out.println("x:" + output.x + ", y:" + output.y);
+        FootPrint output = worlds.get(0).owner.getFootPrints().get(0);
+        System.out.println("x:" + output.x + ", y:" + output.y + ", bomb:" + output.bombed);
     }
 }
 
@@ -54,6 +64,7 @@ class World implements Cloneable {
     List<Bomb> bombs;
     Owner owner;
     int score;
+    
     public World(int width, int height, int score, char[] map, List<Bomb> bombs, Owner owner) {
         this.width = width;
         this.height = height;
@@ -69,21 +80,38 @@ class World implements Cloneable {
         List<Bomb> newBombs = new ArrayList<>(bombs);
         return new World(width, height, score, newMap, newBombs, owner.clone());
     }
+    
+    public boolean bombAndPerform(Action action) {
+       owner.bomb();
+       moveOwner(action);
+       owner.saveFootPrint(true);
+       return update();
+   }
 
     public boolean perform(Action action) {
-        switch (action) {
-            case LEFT:
-                owner.moveLeft();
-                break;
-//            case BOMB_LEFT:
-//                owner.moveLeft();
-//                break;
-
-            default:
-                return false;
-        }
-
+       moveOwner(action);
+       owner.saveFootPrint(false);
         return update();
+    }
+    
+    public void moveOwner(Action action) {
+          switch (action) {
+             case LEFT:
+                 owner.moveLeft();
+                 break;
+             case RIGHT:
+                 owner.moveRight();
+                 break;
+             case UP:
+                owner.moveUp();
+                break;
+            case DOWN:
+                owner.moveDown();
+                break;
+      
+             default:
+                 break;
+          }
     }
 
     private boolean update() {
@@ -91,31 +119,44 @@ class World implements Cloneable {
         if (isOutsideMap(owner) || isCollidedWithBox(owner) || isCollidedWithBomb(owner)) {
             return false;
         }
-
+        
         // Check explosion
         List<Bomb> bang = new ArrayList<>();
         for (Bomb bomb : bombs) {
             bomb.update();
             if (bomb.getCountDown() == 0) {
                 bang.add(bomb);
+                if (bomb.isMyBomb) {
+                   owner.myBombs.remove(bomb);
+                }
             }
         }
         bombs.removeAll(bang);
-        for (Bomb bomb : bang) {
-
+        // Power=3
+        List<Fire> hitBoxFires = new ArrayList<>();
+        List<Fire> removeFires = new ArrayList<>();
+        for (int i=1; i<3; i++) {
+           hitBoxFires.clear();
+           for (Bomb bomb : bang) {
+              removeFires.clear();
+             for (Fire fire : bomb.getFires()) {
+                fire.forward();
+                if (!isOutsideMap(fire) && isCollidedWithBox(fire)) {
+                   removeFires.add(fire);
+                   hitBoxFires.add(fire);
+                   if (bomb.isMyBomb) {
+                      score++;
+                   }
+                }
+             }
+             if (!removeFires.isEmpty()) {
+                bomb.getFires().removeAll(removeFires);
+             }
+           }
+           for (Fire fire : hitBoxFires) {
+              clearBox(fire);
+           }
         }
-
-//        for (Entity fire : allFires) {
-//            if (owner.isCollided(fire)) {
-//                // killed
-//                return false;
-//            }
-//
-//            if (isCollidedWithBox(fire)) {
-//                clearBox(fire);
-//                score++;
-//            }
-//        }
 
         return true;
     }
@@ -134,8 +175,6 @@ class World implements Cloneable {
         map[offset] = '.';
     }
 
-
-
     private boolean isCollidedWithBomb(Entity owner) {
         for (Bomb bomb : bombs) {
             if (owner.isCollided(bomb)) {
@@ -148,15 +187,10 @@ class World implements Cloneable {
 
 enum Action {
     LEFT,
-    BOMB_LEFT,
     RIGHT,
-    BOMB_RIGHT,
     UP,
-    BOMB_UP,
     DOWN,
-    BOMB_DOWN,
     STAY,
-    BOMB_STAY
 }
 
 class Entity {
@@ -171,47 +205,67 @@ class Entity {
     }
 }
 
-class Owner extends Entity implements Cloneable {
-    private List<Entity> footPrints;
+class FootPrint {
+   int x, y;
+   boolean bombed;
+   FootPrint(int x, int y, boolean bombed) {
+      this.x = x;
+      this.y = y;
+      this.bombed = bombed;
+   }
+}
 
-    Owner(int x, int y, List<Entity> footPrints) {
+class Owner extends Entity implements Cloneable {
+    private List<FootPrint> footPrints;
+    public List<Bomb> myBombs = new ArrayList<>();
+
+    Owner(int x, int y, List<FootPrint> footPrints) {
         super(x, y);
         this.footPrints = footPrints;
+    }
+    
+    public Bomb bomb() {
+       Bomb bomb = Bomb.create(x, y);
+       bomb.isMyBomb = true;
+       myBombs.add(bomb);
+       return bomb;
     }
 
     public void moveLeft() {
         x--;
-        footPrints.add(new Entity(x, y));
     }
 
     public void moveRight() {
         x++;
-        footPrints.add(new Entity(x, y));
     }
 
     public void moveUp() {
         y--;
-        footPrints.add(new Entity(x, y));
     }
 
     public void moveDown() {
         y++;
-        footPrints.add(new Entity(x, y));
     }
 
-    public List<Entity> getFootPrints() {
+    public void saveFootPrint(boolean bombed) {
+       footPrints.add(new FootPrint(x, y, bombed));
+    }
+    public List<FootPrint> getFootPrints() {
         return footPrints;
     }
 
     @Override
     protected Owner clone() {
-        List<Entity> newFootPrints = new ArrayList<>(footPrints);
+        List<FootPrint> newFootPrints = new ArrayList<>(footPrints);
         return new Owner(x, y, newFootPrints);
     }
 }
 
 class Bomb extends Entity {
     private int countDown, power;
+    private List<Fire> fires;
+    public boolean isMyBomb;
+    
     Bomb(int x, int y) {
         super(x, y);
     }
@@ -231,7 +285,39 @@ class Bomb extends Entity {
         return power;
     }
 
+    public List<Fire> getFires() {
+       return fires;
+   }
+    
     public void update() {
         countDown--;
+        if (countDown == 0) {
+           fires = new ArrayList<>();
+           fires.add(new Fire(x, y, 0));
+           fires.add(new Fire(x, y, 1));
+           fires.add(new Fire(x, y, 2));
+           fires.add(new Fire(x, y, 3));
+        }
     }
+}
+
+class Fire extends Entity {
+   public boolean isActived = true;
+   private int direction; // 0=N, 1=E, 2=S, 3=W
+   Fire(int x, int y, int direction) {
+      super(x, y);
+      this.direction = direction;
+   }
+   
+   public void forward() {
+      if (direction == 0) {
+         y--;
+      } else if (direction == 1) {
+         x++;
+      } else if (direction == 2) {
+         y++;
+      } else if (direction == 3) {
+         x--;
+      }
+   }
 }
