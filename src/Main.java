@@ -3,61 +3,187 @@ import java.util.*;
 public class Main {
 
     public static void main(String[] args) {
+//        List<World> worlds = new ArrayList<>();
+//        char[] map = {'.', '.', '0', '0', '.', '.', '.', '.', '0'};
+        String mapString = "...........................0.........0.......0......0...0...0...0..0...0...0..0...0...0...0......0.......0.........0....0.....0........0.0.....";
+        int width = 13;
+        int height = 11;
+        Owner robot = new Owner(0, 0, new ArrayList<FootPrint>());
+//        World initWorld = new World(3, 3, 0, map, new ArrayList<Bomb>(), new Owner(0, 0, new ArrayList<FootPrint>()));
+//        worlds.add(initWorld);
+//
+//        int bombNumLimit = 1;
+//
+//        long startTime = System.currentTimeMillis();
+//
+//        for (int depth = 1; depth < 6; depth++) {
+//            List<World> removeList = new ArrayList<>();
+//            List<World> addList = new ArrayList<>();
+//            for (World oldWorld : worlds) {
+//                for (Action action : Action.values()) {
+//                    World newWorld = oldWorld.clone();
+//                    if (newWorld.perform(action)) {
+//                        addList.add(newWorld);
+//                    }
+//                }
+//                if (oldWorld.owner.myBombs.size() < bombNumLimit) {
+//                    for (Action action : Action.values()) {
+//                        World newWorld = oldWorld.clone();
+//                        if (newWorld.bombAndPerform(action)) {
+//                            addList.add(newWorld);
+//                        }
+//                    }
+//                }
+//                removeList.add(oldWorld);
+//            }
+//            worlds.removeAll(removeList);
+//            worlds.addAll(addList);
+//
+//            Collections.sort(worlds, new Comparator<World>() {
+//                @Override
+//                public int compare(World worldA, World worldB) {
+//                    return worldB.score - worldA.score;
+//                }
+//            });
+//
+//            if (worlds.size() > 400) {
+//                worlds = worlds.subList(0, 400);
+//            }
+//
+//            // Stop to simulate the next depth before timeout
+//            long timeDiff = System.currentTimeMillis() - startTime;
+//            System.out.println("time used " + timeDiff + " after depth " + depth);
+//            if (timeDiff > 90) {
+//                break;
+//            }
+//        }
+//
+//        FootPrint output = worlds.get(0).owner.getFootPrints().get(0);
+//        System.out.println("x:" + output.x + ", y:" + output.y + ", bomb:" + output.bombed);
+//        for (FootPrint footPrint : worlds.get(0).owner.getFootPrints()) {
+//            System.out.println("step to " + footPrint.x + "," + footPrint.y + " " + footPrint.bombed);
+//        }
+//        Scanner in = new Scanner(System.in);
+//        int width = in.nextInt();
+//        int height = in.nextInt();
+//        int myId = in.nextInt();
         List<World> worlds = new ArrayList<>();
-        char[] map = {'.', '.', '0', '0', '.', '.', '.', '.', '0'};
-        World initWorld = new World(3, 3, 0, map, new ArrayList<Bomb>(), new Owner(0, 0, new ArrayList<FootPrint>()));
-        worlds.add(initWorld);
+        List<Bomb> bombList = new ArrayList<>();
+        long startTime, lastEndTime = 0, endTime = 0;
+        String outTime = "";
+        long timeLimit = 80;
+        World initWorld = null;
+        // game loop
+        while (true) {
+            startTime = System.currentTimeMillis();
+            if (initWorld == null) {
+                initWorld = new World(width, height, 0, mapString.toCharArray(), bombList, robot);
+            } else {
+                initWorld = worlds.get(0);
+            }
+            worlds.clear();
+            bombList.clear();
+//            Owner robot = new Owner(0, 0, new ArrayList<FootPrint>());
+//            String mapString = "";
+//
+//            for (int i = 0; i < height; i++) {
+//                mapString += in.next();
+//            }
+//            int entities = in.nextInt();
+//            for (int i = 0; i < entities; i++) {
+//                int entityType = in.nextInt();
+//                int owner = in.nextInt();
+//                int x = in.nextInt();
+//                int y = in.nextInt();
+//                int param1 = in.nextInt();
+//                int param2 = in.nextInt();
+//                //System.err.println("owner:"+owner+", x:"+x+", y:"+y+", param1:"+param1+", param2:"+param2);
+//
+//                if (entityType == 1) {
+//                    Bomb newBomb = Bomb.create(x, y, param1);
+//                    bombList.add(newBomb);
+//                    if (owner == myId) {
+//                        robot.myBombs.add(newBomb);
+//                    }
+//
+//                } else if (entityType == 0 && owner == myId) {
+//                    robot.x = x;
+//                    robot.y = y;
+//                }
+//            }
 
-        int bombNumLimit = 1;
+            // Write an action using System.out.println()
+            // To debug: System.err.println("Debug messages...");
 
-        long startTime = System.currentTimeMillis();
+            //System.out.println("BOMB 6 5");
 
-        for (int depth = 1; depth < 6; depth++) {
-            List<World> removeList = new ArrayList<>();
-            List<World> addList = new ArrayList<>();
-            for (World oldWorld : worlds) {
-                for (Action action : Action.values()) {
-                    World newWorld = oldWorld.clone();
-                    if (newWorld.perform(action)) {
-                        addList.add(newWorld);
-                    }
-                }
-                if (oldWorld.owner.myBombs.size() < bombNumLimit) {
+
+//            World initWorld = new World(width, height, 0, mapString.toCharArray(), bombList, robot);
+            worlds.add(initWorld);
+            int bombNumLimit = 1;
+            boolean stop = false;
+            for (int depth = 1; ; depth++) {
+//                if (stop) {
+//                    break;
+//                }
+                List<World> removeList = new ArrayList<>();
+                List<World> addList = new ArrayList<>();
+                for (World oldWorld : worlds) {
                     for (Action action : Action.values()) {
                         World newWorld = oldWorld.clone();
-                        if (newWorld.bombAndPerform(action)) {
+                        if (newWorld.perform(action)) {
                             addList.add(newWorld);
                         }
                     }
+                    if (oldWorld.owner.myBombs.size() < bombNumLimit) {
+                        for (Action action : Action.values()) {
+                            World newWorld = oldWorld.clone();
+                            if (newWorld.bombAndPerform(action)) {
+                                addList.add(newWorld);
+                            }
+                        }
+                    }
+                    removeList.add(oldWorld);
+
+//                    // Stop to simulate the next depth before timeout
+//                    long timeDiff = System.currentTimeMillis() - startTime;
+//                    //System.err.println("time used " + timeDiff + " after depth " + depth);
+//                    if (timeDiff > timeLimit) {
+//                        stop = true;
+//                        break;
+//                    }
                 }
-                removeList.add(oldWorld);
-            }
-            worlds.removeAll(removeList);
-            worlds.addAll(addList);
+                worlds.removeAll(removeList);
+                worlds.addAll(addList);
 
-            Collections.sort(worlds, new Comparator<World>() {
-                @Override
-                public int compare(World worldA, World worldB) {
-                    return worldB.score - worldA.score;
+                Collections.sort(worlds, new Comparator<World>() {
+                    @Override
+                    public int compare(World worldA, World worldB) {
+                        return worldB.score - worldA.score;
+                    }
+                });
+
+                System.err.println("size " + worlds.size());
+                if (worlds.size() > 400) {
+                    worlds = worlds.subList(0, 400);
                 }
-            });
 
-            if (worlds.size() > 400) {
-                worlds = worlds.subList(0, 400);
+
+                // Stop to simulate the next depth before timeout
+                long timeDiff = System.currentTimeMillis() - startTime;
+                System.err.println("time used " + timeDiff + " after depth " + depth + ", size " + worlds.size());
+                if (timeDiff > timeLimit) {
+                    break;
+                }
             }
 
-            // Stop to simulate the next depth before timeout
-            long timeDiff = System.currentTimeMillis() - startTime;
-            System.out.println("time used " + timeDiff + " after depth " + depth);
-            if (timeDiff > 90) {
-                break;
-            }
-        }
-
-        FootPrint output = worlds.get(0).owner.getFootPrints().get(0);
-        System.out.println("x:" + output.x + ", y:" + output.y + ", bomb:" + output.bombed);
-        for (FootPrint footPrint : worlds.get(0).owner.getFootPrints()) {
-            System.out.println("step to " + footPrint.x + "," + footPrint.y + " " + footPrint.bombed);
+            FootPrint output = worlds.get(0).owner.getFootPrints().get(0);
+            String command = (output.bombed ? "BOMB" : "MOVE") + " " + output.x + " " + output.y + " @@";
+            endTime = System.currentTimeMillis() - lastEndTime;
+            lastEndTime = System.currentTimeMillis();
+            outTime += " " + endTime;
+            System.err.println(worlds.size() + " " + command + outTime);
+            System.out.println(command);
         }
     }
 }
@@ -235,7 +361,7 @@ class Owner extends Entity implements Cloneable {
     }
 
     public Bomb bomb() {
-        Bomb bomb = Bomb.create(x, y);
+        Bomb bomb = Bomb.create(x, y, 8);
         bomb.isMyBomb = true;
         myBombs.add(bomb);
         return bomb;
@@ -277,14 +403,13 @@ class Bomb extends Entity {
     private List<Fire> fires;
     public boolean isMyBomb;
 
-    Bomb(int x, int y) {
+    Bomb(int x, int y, int countDown) {
         super(x, y);
+        this.countDown = countDown;
     }
 
-    public static Bomb create(int x, int y) {
-        Bomb bomb = new Bomb(x, y);
-        bomb.countDown = 1;
-        bomb.power = 1;
+    public static Bomb create(int x, int y, int countDown) {
+        Bomb bomb = new Bomb(x, y, countDown);
         return bomb;
     }
 
