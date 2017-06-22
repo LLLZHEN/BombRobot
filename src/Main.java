@@ -4,15 +4,15 @@ public class Main {
 
     public static void main(String[] args) {
         List<World> worlds = new ArrayList<>();
-        char[] map = {'.', '.', '.', '.', '.', '.', '.', '.', '0'};
-        World initWorld = new World(3, 3, 0, map, new ArrayList<Bomb>(), new Owner(2, 0, new ArrayList<FootPrint>()));
+        char[] map = {'.', '.', '0', '0', '.', '.', '.', '.', '0'};
+        World initWorld = new World(3, 3, 0, map, new ArrayList<Bomb>(), new Owner(0, 0, new ArrayList<FootPrint>()));
         worlds.add(initWorld);
-        
+
         int bombNumLimit = 1;
 
         long startTime = System.currentTimeMillis();
 
-        for (int depth = 1; depth < 2; depth++) {
+        for (int depth = 1; depth < 6; depth++) {
             List<World> removeList = new ArrayList<>();
             List<World> addList = new ArrayList<>();
             for (World oldWorld : worlds) {
@@ -23,12 +23,12 @@ public class Main {
                     }
                 }
                 if (oldWorld.owner.myBombs.size() < bombNumLimit) {
-                   for (Action action : Action.values()) {
-                      World newWorld = oldWorld.clone();
-                      if (newWorld.bombAndPerform(action)) {
-                          addList.add(newWorld);
-                      }
-                   }
+                    for (Action action : Action.values()) {
+                        World newWorld = oldWorld.clone();
+                        if (newWorld.bombAndPerform(action)) {
+                            addList.add(newWorld);
+                        }
+                    }
                 }
                 removeList.add(oldWorld);
             }
@@ -38,7 +38,7 @@ public class Main {
             Collections.sort(worlds, new Comparator<World>() {
                 @Override
                 public int compare(World worldA, World worldB) {
-                    return worldA.score - worldB.score;
+                    return worldB.score - worldA.score;
                 }
             });
 
@@ -47,13 +47,18 @@ public class Main {
             }
 
             // Stop to simulate the next depth before timeout
-            if (System.currentTimeMillis() - startTime > 90) {
+            long timeDiff = System.currentTimeMillis() - startTime;
+            System.out.println("time used " + timeDiff + " after depth " + depth);
+            if (timeDiff > 90) {
                 break;
             }
         }
 
         FootPrint output = worlds.get(0).owner.getFootPrints().get(0);
         System.out.println("x:" + output.x + ", y:" + output.y + ", bomb:" + output.bombed);
+        for (FootPrint footPrint : worlds.get(0).owner.getFootPrints()) {
+            System.out.println("step to " + footPrint.x + "," + footPrint.y + " " + footPrint.bombed);
+        }
     }
 }
 
@@ -64,7 +69,7 @@ class World implements Cloneable {
     List<Bomb> bombs;
     Owner owner;
     int score;
-    
+
     public World(int width, int height, int score, char[] map, List<Bomb> bombs, Owner owner) {
         this.width = width;
         this.height = height;
@@ -80,38 +85,38 @@ class World implements Cloneable {
         List<Bomb> newBombs = new ArrayList<>(bombs);
         return new World(width, height, score, newMap, newBombs, owner.clone());
     }
-    
-    public boolean bombAndPerform(Action action) {
-       owner.bomb();
-       moveOwner(action);
-       owner.saveFootPrint(true);
-       return update();
-   }
 
-    public boolean perform(Action action) {
-       moveOwner(action);
-       owner.saveFootPrint(false);
+    public boolean bombAndPerform(Action action) {
+        bombs.add(owner.bomb());
+        moveOwner(action);
+        owner.saveFootPrint(true);
         return update();
     }
-    
+
+    public boolean perform(Action action) {
+        moveOwner(action);
+        owner.saveFootPrint(false);
+        return update();
+    }
+
     public void moveOwner(Action action) {
-          switch (action) {
-             case LEFT:
-                 owner.moveLeft();
-                 break;
-             case RIGHT:
-                 owner.moveRight();
-                 break;
-             case UP:
+        switch (action) {
+            case LEFT:
+                owner.moveLeft();
+                break;
+            case RIGHT:
+                owner.moveRight();
+                break;
+            case UP:
                 owner.moveUp();
                 break;
             case DOWN:
                 owner.moveDown();
                 break;
-      
-             default:
-                 break;
-          }
+
+            default:
+                break;
+        }
     }
 
     private boolean update() {
@@ -119,7 +124,7 @@ class World implements Cloneable {
         if (isOutsideMap(owner) || isCollidedWithBox(owner) || isCollidedWithBomb(owner)) {
             return false;
         }
-        
+
         // Check explosion
         List<Bomb> bang = new ArrayList<>();
         for (Bomb bomb : bombs) {
@@ -127,35 +132,38 @@ class World implements Cloneable {
             if (bomb.getCountDown() == 0) {
                 bang.add(bomb);
                 if (bomb.isMyBomb) {
-                   owner.myBombs.remove(bomb);
+                    owner.myBombs.remove(bomb);
                 }
             }
         }
         bombs.removeAll(bang);
         // Power=3
+        int bombPower = 2;
         List<Fire> hitBoxFires = new ArrayList<>();
         List<Fire> removeFires = new ArrayList<>();
-        for (int i=1; i<3; i++) {
-           hitBoxFires.clear();
-           for (Bomb bomb : bang) {
-              removeFires.clear();
-             for (Fire fire : bomb.getFires()) {
-                fire.forward();
-                if (!isOutsideMap(fire) && isCollidedWithBox(fire)) {
-                   removeFires.add(fire);
-                   hitBoxFires.add(fire);
-                   if (bomb.isMyBomb) {
-                      score++;
-                   }
+        for (int i = 1; i < bombPower; i++) {
+            hitBoxFires.clear();
+            for (Bomb bomb : bang) {
+                removeFires.clear();
+                for (Fire fire : bomb.getFires()) {
+                    fire.forward();
+                    if (isOutsideMap(fire)) {
+                        removeFires.add(fire);
+                    } else if (isCollidedWithBox(fire)) {
+                        removeFires.add(fire);
+                        hitBoxFires.add(fire);
+                        if (bomb.isMyBomb) {
+                            score++;
+                        }
+                    }
                 }
-             }
-             if (!removeFires.isEmpty()) {
-                bomb.getFires().removeAll(removeFires);
-             }
-           }
-           for (Fire fire : hitBoxFires) {
-              clearBox(fire);
-           }
+                if (!removeFires.isEmpty()) {
+                    bomb.getFires().removeAll(removeFires);
+                }
+            }
+            for (Fire fire : hitBoxFires) {
+                clearBox(fire);
+            }
         }
 
         return true;
@@ -195,6 +203,7 @@ enum Action {
 
 class Entity {
     int x, y;
+
     Entity(int x, int y) {
         this.x = x;
         this.y = y;
@@ -206,13 +215,14 @@ class Entity {
 }
 
 class FootPrint {
-   int x, y;
-   boolean bombed;
-   FootPrint(int x, int y, boolean bombed) {
-      this.x = x;
-      this.y = y;
-      this.bombed = bombed;
-   }
+    int x, y;
+    boolean bombed;
+
+    FootPrint(int x, int y, boolean bombed) {
+        this.x = x;
+        this.y = y;
+        this.bombed = bombed;
+    }
 }
 
 class Owner extends Entity implements Cloneable {
@@ -223,12 +233,12 @@ class Owner extends Entity implements Cloneable {
         super(x, y);
         this.footPrints = footPrints;
     }
-    
+
     public Bomb bomb() {
-       Bomb bomb = Bomb.create(x, y);
-       bomb.isMyBomb = true;
-       myBombs.add(bomb);
-       return bomb;
+        Bomb bomb = Bomb.create(x, y);
+        bomb.isMyBomb = true;
+        myBombs.add(bomb);
+        return bomb;
     }
 
     public void moveLeft() {
@@ -248,8 +258,9 @@ class Owner extends Entity implements Cloneable {
     }
 
     public void saveFootPrint(boolean bombed) {
-       footPrints.add(new FootPrint(x, y, bombed));
+        footPrints.add(new FootPrint(x, y, bombed));
     }
+
     public List<FootPrint> getFootPrints() {
         return footPrints;
     }
@@ -265,15 +276,15 @@ class Bomb extends Entity {
     private int countDown, power;
     private List<Fire> fires;
     public boolean isMyBomb;
-    
+
     Bomb(int x, int y) {
         super(x, y);
     }
 
     public static Bomb create(int x, int y) {
         Bomb bomb = new Bomb(x, y);
-        bomb.countDown = 8;
-        bomb.power = 3;
+        bomb.countDown = 1;
+        bomb.power = 1;
         return bomb;
     }
 
@@ -286,38 +297,39 @@ class Bomb extends Entity {
     }
 
     public List<Fire> getFires() {
-       return fires;
-   }
-    
+        return fires;
+    }
+
     public void update() {
         countDown--;
         if (countDown == 0) {
-           fires = new ArrayList<>();
-           fires.add(new Fire(x, y, 0));
-           fires.add(new Fire(x, y, 1));
-           fires.add(new Fire(x, y, 2));
-           fires.add(new Fire(x, y, 3));
+            fires = new ArrayList<>();
+            fires.add(new Fire(x, y, 0));
+            fires.add(new Fire(x, y, 1));
+            fires.add(new Fire(x, y, 2));
+            fires.add(new Fire(x, y, 3));
         }
     }
 }
 
 class Fire extends Entity {
-   public boolean isActived = true;
-   private int direction; // 0=N, 1=E, 2=S, 3=W
-   Fire(int x, int y, int direction) {
-      super(x, y);
-      this.direction = direction;
-   }
-   
-   public void forward() {
-      if (direction == 0) {
-         y--;
-      } else if (direction == 1) {
-         x++;
-      } else if (direction == 2) {
-         y++;
-      } else if (direction == 3) {
-         x--;
-      }
-   }
+    public boolean isActived = true;
+    private int direction; // 0=N, 1=E, 2=S, 3=W
+
+    Fire(int x, int y, int direction) {
+        super(x, y);
+        this.direction = direction;
+    }
+
+    public void forward() {
+        if (direction == 0) {
+            y--;
+        } else if (direction == 1) {
+            x++;
+        } else if (direction == 2) {
+            y++;
+        } else if (direction == 3) {
+            x--;
+        }
+    }
 }
